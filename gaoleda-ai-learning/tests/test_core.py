@@ -98,7 +98,7 @@ class TestAuthFlow(unittest.TestCase):
         storage.reset_for_tests()
 
     def test_register_then_login(self):
-        ok, msg = auth.register("alice", "123456")
+        ok, msg = auth.register("alice", "123456", "13800000001")
         self.assertTrue(ok, msg)
         self.assertEqual(auth.user_count(), 1)
 
@@ -106,14 +106,14 @@ class TestAuthFlow(unittest.TestCase):
         self.assertTrue(ok, msg)
 
     def test_register_duplicate_username(self):
-        auth.register("bob", "111111")
-        ok, msg = auth.register("bob", "222222")
+        auth.register("bob", "111111", "13800000001")
+        ok, msg = auth.register("bob", "222222", "13800000001")
         self.assertFalse(ok)
         self.assertIn("已被注册", msg)
         self.assertEqual(auth.user_count(), 1)
 
     def test_login_wrong_password(self):
-        auth.register("carol", "123456")
+        auth.register("carol", "123456", "13800000001")
         ok, msg = auth.login("carol", "654321")
         self.assertFalse(ok)
         self.assertIn("密码错误", msg)
@@ -124,12 +124,12 @@ class TestAuthFlow(unittest.TestCase):
         self.assertIn("用户不存在", msg)
 
     def test_register_rejects_bad_password(self):
-        ok, msg = auth.register("dave", "abcdef")
+        ok, msg = auth.register("dave", "abcdef", "13800000001")
         self.assertFalse(ok)
         self.assertEqual(auth.user_count(), 0)
 
     def test_password_not_stored_in_plaintext(self):
-        auth.register("erin", "123456")
+        auth.register("erin", "123456", "13800000001")
         with storage.db() as conn:
             stored = conn.execute(
                 "SELECT password_hash FROM users WHERE username = 'erin'"
@@ -141,9 +141,9 @@ class TestAuthFlow(unittest.TestCase):
         original = auth.MAX_USERS
         auth.MAX_USERS = 2
         try:
-            self.assertTrue(auth.register("u1", "123456")[0])
-            self.assertTrue(auth.register("u2", "123456")[0])
-            ok, msg = auth.register("u3", "123456")
+            self.assertTrue(auth.register("u1", "123456", "13800000001")[0])
+            self.assertTrue(auth.register("u2", "123456", "13800000001")[0])
+            ok, msg = auth.register("u3", "123456", "13800000001")
             self.assertFalse(ok)
             self.assertIn("上限", msg)
             self.assertEqual(auth.remaining_slots(), 0)
@@ -151,7 +151,7 @@ class TestAuthFlow(unittest.TestCase):
             auth.MAX_USERS = original
 
     def test_change_password(self):
-        auth.register("frank", "123456")
+        auth.register("frank", "123456", "13800000001")
         ok, msg = auth.change_password("frank", "000000", "654321")
         self.assertFalse(ok)
         ok, msg = auth.change_password("frank", "123456", "654321")
@@ -160,7 +160,7 @@ class TestAuthFlow(unittest.TestCase):
         self.assertFalse(auth.login("frank", "123456")[0])
 
     def test_set_bio(self):
-        auth.register("gina", "123456")
+        auth.register("gina", "123456", "13800000001")
         ok, _ = auth.set_bio("gina", "AI 学习者")
         self.assertTrue(ok)
         self.assertEqual(auth.get_user("gina")["bio"], "AI 学习者")
@@ -169,8 +169,8 @@ class TestAuthFlow(unittest.TestCase):
 class TestDiscussion(unittest.TestCase):
     def setUp(self):
         storage.reset_for_tests()
-        auth.register("host", "123456")
-        auth.register("guest", "123456")
+        auth.register("host", "123456", "13800000001")
+        auth.register("guest", "123456", "13800000001")
 
     def test_add_post_requires_login_and_content(self):
         self.assertFalse(discussion.add_post("", "hi")[0])
@@ -247,7 +247,7 @@ class TestDiscussion(unittest.TestCase):
 class TestFiles(unittest.TestCase):
     def setUp(self):
         storage.reset_for_tests()
-        auth.register("uploader", "123456")
+        auth.register("uploader", "123456", "13800000001")
 
     def test_save_and_list(self):
         ok, msg = file_store.save_upload("uploader", "note.txt", b"hello world", "笔记")

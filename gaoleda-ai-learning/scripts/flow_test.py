@@ -66,18 +66,31 @@ def main() -> int:  # noqa: C901
     at.text_input[2].set_value("flow_user")
     at.text_input[3].set_value("123456")
     at.text_input[4].set_value("123456")
+    at.text_input[5].set_value("13800000002")
     at = click_submit(at, "注册")
     if at.exception:
         bad(f"注册时抛异常：{at.exception[0].value}")
     elif not any("注册成功" in s.value for s in at.success):
         bad(f"注册未成功：{[s.value for s in at.success]} / {[e.value for e in at.error]}")
     else:
-        ok("注册成功（用户名 flow_user / 密码 123456）")
+        ok("注册成功（用户名 flow_user / 密码 123456 / 手机号 13800000002）")
+
+    # 手机号格式错误分支
+    at.text_input[2].set_value("flow_phone_bad")
+    at.text_input[3].set_value("123456")
+    at.text_input[4].set_value("123456")
+    at.text_input[5].set_value("12345")
+    at = click_submit(at, "注册")
+    if any("手机号" in e.value for e in at.error):
+        ok("非法手机号被拦截并给出明确提示")
+    else:
+        bad(f"非法手机号未被拦截：{[e.value for e in at.error]}")
 
     # 密码格式错误分支
     at.text_input[2].set_value("flow_user2")
     at.text_input[3].set_value("abc")
     at.text_input[4].set_value("abc")
+    at.text_input[5].set_value("13800000003")
     at = click_submit(at, "注册")
     if any("数字" in e.value for e in at.error):
         ok("非法密码被拦截并给出明确提示")
@@ -88,6 +101,7 @@ def main() -> int:  # noqa: C901
     at.text_input[2].set_value("flow_user")
     at.text_input[3].set_value("123456")
     at.text_input[4].set_value("123456")
+    at.text_input[5].set_value("13800000002")
     at = click_submit(at, "注册")
     if any("已被注册" in e.value for e in at.error):
         ok("重复用户名被拦截")
@@ -98,6 +112,7 @@ def main() -> int:  # noqa: C901
     at.text_input[2].set_value("flow_user3")
     at.text_input[3].set_value("123456")
     at.text_input[4].set_value("654321")
+    at.text_input[5].set_value("13800000004")
     at = click_submit(at, "注册")
     if any("不一致" in e.value for e in at.error):
         ok("两次密码不一致被拦截")

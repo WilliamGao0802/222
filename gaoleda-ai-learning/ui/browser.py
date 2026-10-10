@@ -33,7 +33,16 @@ def read(name: str) -> str:
 
 
 def _run_js(js: str) -> None:
-    components.html(f"<script>{js}</script>", height=0, width=0)
+    """把一段脚本塞进零高度 iframe 执行。
+
+    优先用 Streamlit 新版 `st.iframe`（components.v1.html 已标记弃用），
+    老版本上自动回退，保持对 streamlit>=1.37 的兼容。
+    """
+    markup = f"<script>{js}</script>"
+    try:
+        st.iframe(markup, height=0)
+    except Exception:  # noqa: BLE001  老版本没有 st.iframe
+        components.html(markup, height=0, width=0)
 
 
 def _cookie_stmt(name: str, value: str, max_age: int) -> str:

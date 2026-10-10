@@ -83,7 +83,7 @@ def main() -> int:
     from core import auth  # noqa: PLC0415
 
     if not auth.user_exists("William"):
-        auth.register("William", "888888")
+        auth.register("William", "888888", "13800000001")
     run_case("管理员 · 管理后台", "管理后台", user="William")
 
     print()

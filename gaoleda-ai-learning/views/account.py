@@ -21,7 +21,7 @@ def render() -> None:
 # ------------------------------------------------------------------ 登录 / 注册
 def _render_auth() -> None:
     c.hero("ACCOUNT", "登录 / 注册",
-           f"仅需用户名与密码 · 密码必须为 {config.PASSWORD_LEN} 位阿拉伯数字")
+           f"用户名 + 密码 + 手机号 · 密码必须为 {config.PASSWORD_LEN} 位阿拉伯数字")
 
     quota = auth.remaining_slots()
     st.markdown(
@@ -63,25 +63,32 @@ def _render_auth() -> None:
                 "确认密码", type="password", max_chars=config.PASSWORD_LEN,
                 placeholder="请再次输入相同密码",
             )
+            ph = st.text_input(
+                "手机号", max_chars=11, placeholder="11 位手机号，例如 13800000000",
+                help="用于绑定账户，不需要短信验证码，填写后保存即可",
+            )
             if st.form_submit_button("注册", use_container_width=True, type="primary"):
                 ok_u, msg_u = auth.validate_username(u2)
                 ok_p, msg_p = auth.validate_password(p2)
+                ok_ph, msg_ph = auth.validate_phone(ph)
                 if not ok_u:
                     st.error(msg_u)
                 elif not ok_p:
                     st.error(msg_p)
+                elif not ok_ph:
+                    st.error(msg_ph)
                 elif p2 != p3:
                     st.error("两次输入的密码不一致，请重新确认")
                 else:
-                    ok, msg = auth.register(u2, p2)
+                    ok, msg = auth.register(u2, p2, ph)
                     if ok:
                         st.success(msg + "　可直接在上方「登录」标签页登录。")
                     else:
                         st.error(msg)
 
     st.info(
-        "账号说明：本平台仅保存用户名与密码哈希（PBKDF2-HMAC-SHA256 + 随机盐），"
-        "不收集邮箱、手机号等任何个人信息。"
+        "账号说明：密码以 PBKDF2-HMAC-SHA256 + 随机盐存储；手机号仅用于绑定账户，"
+        "不做短信验证、不对外公开。登录状态会保存在本机浏览器，刷新页面无需重复登录。"
     )
     c.footer(
         f"忘记密码？本站不提供找回功能，请牢记你的 {config.PASSWORD_LEN} 位数字密码。"
@@ -105,9 +112,11 @@ def _render_profile(user: str) -> None:
     m3.metric("关注", len(following))
     m4.metric("粉丝", len(followers))
 
+    phone = info.get("phone") or ""
     st.caption(
         f"注册时间：{info.get('created_at', '-')}　|　"
-        f"上次登录：{info.get('last_login') or '本次为首次登录'}"
+        f"上次登录：{info.get('last_login') or '本次为首次登录'}　|　"
+        f"手机号：{phone or '未绑定（请在个人设置中补绑）'}"
     )
 
     st.write("")
@@ -125,6 +134,19 @@ def _render_profile(user: str) -> None:
     tab1, tab2, tab3 = st.tabs(["个人设置", "我的发言", "我的文件"])
 
     with tab1:
+        with st.form("phone_form"):
+            st.caption("绑定 / 更换手机号（不需要短信验证码，格式正确即保存）")
+            new_phone = st.text_input(
+                "手机号", value=phone, max_chars=11,
+                placeholder="11 位手机号，例如 13800000000",
+            )
+            if st.form_submit_button("保存手机号", use_container_width=True):
+                ok, msg = auth.set_phone(user, new_phone)
+                st.success(msg) if ok else st.error(msg)
+                if ok:
+                    st.rerun()
+
+        st.write("")
         with st.form("bio_form"):
             bio = st.text_input("个人简介", value=info.get("bio") or "",
                                 max_chars=80, placeholder="一句话介绍自己")

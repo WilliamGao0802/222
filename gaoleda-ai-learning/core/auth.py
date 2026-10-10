@@ -22,6 +22,7 @@ from .config import (
     ADMIN_USERNAMES,
     MAX_USERS,
     PASSWORD_LEN,
+    PHONE_RE,
     USERNAME_MAX,
     USERNAME_MIN,
 )
@@ -56,6 +57,20 @@ def validate_password(password: str) -> tuple[bool, str]:
         return False, "密码只能由 0-9 的阿拉伯数字组成，不能含字母、符号或全角数字"
     if len(pwd) != PASSWORD_LEN:
         return False, f"密码必须恰好为 {PASSWORD_LEN} 位数字（当前输入 {len(pwd)} 位）"
+    return True, ""
+
+
+def validate_phone(phone: str) -> tuple[bool, str]:
+    """手机号校验：不做短信验证，只校验格式，输入即可保存。"""
+    value = (phone or "").strip()
+    if not value:
+        return False, "请填写手机号（用于绑定账户，不需要验证码）"
+    if not value.isascii() or not value.isdigit():
+        return False, "手机号只能由 0-9 的阿拉伯数字组成，不含空格、加号或全角数字"
+    if len(value) != 11:
+        return False, f"手机号必须是 11 位数字（当前 {len(value)} 位）"
+    if not PHONE_RE.match(value):
+        return False, "手机号格式不正确：须以 1 开头、第二位为 3-9 的中国大陆手机号"
     return True, ""
 
 
@@ -126,15 +141,19 @@ def remaining_slots() -> int:
 
 # ---------------------------------------------------------------- 写操作
 @write
-def register(username: str, password: str) -> tuple[bool, str]:
+def register(username: str, password: str, phone: str = "") -> tuple[bool, str]:
     ok, msg = validate_username(username)
     if not ok:
         return False, msg
     ok, msg = validate_password(password)
     if not ok:
         return False, msg
+    ok, msg = validate_phone(phone)
+    if not ok:
+        return False, msg
 
     name = username.strip()
+    number = phone.strip()
     role = ROLE_ADMIN if is_reserved_admin_name(name) else ROLE_MEMBER
     with db() as conn:
         if conn.execute("SELECT 1 FROM users WHERE username = ?", (name,)).fetchone():
@@ -143,13 +162,15 @@ def register(username: str, password: str) -> tuple[bool, str]:
         if total >= MAX_USERS:
             return False, f"注册用户已达上限（{MAX_USERS} 人），暂时无法注册新账号"
         conn.execute(
-            "INSERT INTO users (username, password_hash, password_enc, role, created_at, last_login) "
-            "VALUES (?, ?, ?, ?, ?, NULL)",
+            "INSERT INTO users "
+            "(username, password_hash, password_enc, role, phone, created_at, last_login) "
+            "VALUES (?, ?, ?, ?, ?, ?, NULL)",
             (
                 name,
                 _make_stored(password),
                 crypto.encrypt(password),
                 role,
+                number,
                 datetime.now().isoformat(timespec="seconds"),
             ),
         )
@@ -219,6 +240,24 @@ def reset_password(username: str, new_password: str) -> tuple[bool, str]:
             (_make_stored(new_password), crypto.encrypt(new_password), name),
         )
     return True, "密码已重置"
+
+
+@write
+def set_phone(username: str, phone: str) -> tuple[bool, str]:
+    """绑定 / 更换手机号。不做短信验证，格式正确即保存。"""
+    name = (username or "").strip()
+    if not name:
+        return False, "请先登录"
+    ok, msg = validate_phone(phone)
+    if not ok:
+        return False, msg
+    with db() as conn:
+        if conn.execute("SELECT 1 FROM users WHERE username = ?", (name,)).fetchone() is None:
+            return False, "用户不存在"
+        conn.execute(
+            "UPDATE users SET phone = ? WHERE username = ?", (phone.strip(), name)
+        )
+    return True, "手机号已保存"
 
 
 @write
