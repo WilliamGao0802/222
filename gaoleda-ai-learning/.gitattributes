@@ -1,0 +1,12 @@
+# 统一行尾：Windows 上开发、Linux 容器里部署，这一步不能省
+* text=auto
+*.sh  text eol=lf
+*.bat text eol=crlf
+*.toml text eol=lf
+*.py  text eol=lf
+
+# 二进制
+*.png binary
+*.jpg binary
+*.pdf binary
+*.db  binary
