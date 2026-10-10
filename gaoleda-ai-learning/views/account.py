@@ -7,7 +7,7 @@ import streamlit as st
 from core import auth, config, discussion
 from core import files as file_store
 from ui import components as c
-from views import goto
+from views import goto, logout, sign_in
 
 
 def render() -> None:
@@ -44,9 +44,8 @@ def _render_auth() -> None:
             if st.form_submit_button("登录", use_container_width=True, type="primary"):
                 ok, msg = auth.login(u, p)
                 if ok:
-                    st.session_state["user"] = (u or "").strip()
-                    st.session_state["news_detail"] = None
-                    st.success(msg)
+                    sign_in(u)
+                    st.success(msg + "　登录状态已保存在本机，刷新页面无需重复登录。")
                     st.rerun()
                 else:
                     st.error(msg)
@@ -118,8 +117,7 @@ def _render_profile(user: str) -> None:
             goto("forum")
     with b2:
         if st.button("🚪 退出登录", use_container_width=True):
-            st.session_state["user"] = None
-            st.session_state["news_detail"] = None
+            logout()
             st.success("已退出登录")
             st.rerun()
 

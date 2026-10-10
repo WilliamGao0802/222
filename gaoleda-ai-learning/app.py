@@ -75,6 +75,7 @@ from ui import components as c  # noqa: E402
 from ui import theme  # noqa: E402
 from views import account, forum, home, news  # noqa: E402
 from views import files as files_view  # noqa: E402
+from views import logout, restore_session  # noqa: E402
 
 # ---------------------------------------------------------------- 页面配置
 st.set_page_config(
@@ -92,6 +93,9 @@ theme.inject()
 
 st.session_state.setdefault("user", None)
 st.session_state.setdefault("news_detail", None)
+
+# 用浏览器 Cookie 恢复登录态 —— 刷新页面不需要重新登录
+restore_session()
 
 # ---------------------------------------------------------------- 页面注册
 page_home = st.Page(home.render, title="首页", icon="🏠", url_path="home", default=True)
@@ -133,8 +137,7 @@ with st.sidebar:
         info = auth.get_user(user) or {}
         c.user_box(f"👤 {user}", info.get("bio") or "已登录")
         if st.button("退出登录", use_container_width=True, key="sidebar_logout"):
-            st.session_state["user"] = None
-            st.session_state["news_detail"] = None
+            logout()
             st.rerun()
     else:
         st.info("当前未登录，仅可浏览公开内容。")
