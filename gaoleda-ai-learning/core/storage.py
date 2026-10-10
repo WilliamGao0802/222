@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS users (
     role          TEXT NOT NULL DEFAULT 'member',
     phone         TEXT NOT NULL DEFAULT '',
     avatar        TEXT NOT NULL DEFAULT '',
-    password_enc  TEXT NOT NULL DEFAULT ''
+    password_enc  TEXT NOT NULL DEFAULT '',
+    session_epoch INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS posts (
@@ -89,6 +90,8 @@ MIGRATIONS: dict[str, list[tuple[str, str]]] = {
         ("phone", "TEXT NOT NULL DEFAULT ''"),
         ("avatar", "TEXT NOT NULL DEFAULT ''"),
         ("password_enc", "TEXT NOT NULL DEFAULT ''"),
+        # 会话世代号：退出登录时 +1，可让所有已签发的「记住我」令牌立即作废
+        ("session_epoch", "INTEGER NOT NULL DEFAULT 0"),
     ],
     "files": [
         ("repo", f"TEXT NOT NULL DEFAULT '{DEFAULT_REPO}'"),

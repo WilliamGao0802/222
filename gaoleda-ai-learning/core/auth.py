@@ -115,6 +115,40 @@ def user_exists(username: str) -> bool:
     return row is not None
 
 
+# ------------------------------------------------------------------ 会话世代号
+def session_epoch(username: str) -> int | None:
+    """读取用户的会话世代号；用户不存在返回 None。
+
+    「记住我」令牌里带着签发时的世代号。校验时若与库里的不一致，令牌即作废。
+    这样退出登录只需要把世代号 +1，就能立刻让所有旧令牌失效——
+    不必依赖浏览器把 Cookie 删干净（那是异步的，且 st.context.cookies 在同一个
+    会话内读到的是页面首次加载时的快照，不会反映随后的改动）。
+    """
+    with db() as conn:
+        row = conn.execute(
+            "SELECT session_epoch FROM users WHERE username = ?",
+            ((username or "").strip(),),
+        ).fetchone()
+    return int(row["session_epoch"]) if row else None
+
+
+@write
+def bump_session_epoch(username: str) -> int:
+    """会话世代号 +1，作废该用户此前签发的全部令牌（退出登录时调用）。"""
+    name = (username or "").strip()
+    if not name:
+        return 0
+    with db() as conn:
+        conn.execute(
+            "UPDATE users SET session_epoch = session_epoch + 1 WHERE username = ?",
+            (name,),
+        )
+        row = conn.execute(
+            "SELECT session_epoch FROM users WHERE username = ?", (name,)
+        ).fetchone()
+    return int(row["session_epoch"]) if row else 0
+
+
 def get_user(username: str) -> dict[str, Any] | None:
     with db() as conn:
         row = conn.execute(

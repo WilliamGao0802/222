@@ -81,34 +81,116 @@ class TestCrypto(unittest.TestCase):
 # ================================================================ 会话令牌
 class TestSessionToken(unittest.TestCase):
     def test_issue_and_verify(self):
-        token = session.issue("William")
-        self.assertEqual(session.verify(token), "William")
+        token = session.issue("William", 3)
+        self.assertEqual(session.verify(token), ("William", 3))
 
     def test_empty_username_rejected(self):
         self.assertEqual(session.issue(""), "")
 
     def test_tampered_username_rejected(self):
-        token = session.issue("alice")
-        name, issued, sig = token.split("|")
-        forged = f"bob|{issued}|{sig}"
+        token = session.issue("alice", 0)
+        encoded, issued, epoch, sig = token.split("|")
+        forged = "|".join((session._encode_name("bob"), issued, epoch, sig))
         self.assertIsNone(session.verify(forged))
 
+    def test_tampered_epoch_rejected(self):
+        token = session.issue("alice", 0)
+        encoded, issued, _, sig = token.split("|")
+        self.assertIsNone(session.verify("|".join((encoded, issued, "7", sig))))
+
     def test_malformed_tokens_rejected(self):
-        for bad in ("", "a|b", "a|b|c|d", "onlyname"):
+        for bad in ("", "a|b", "a|b|c", "a|b|c|d|e", "onlyname"):
             self.assertIsNone(session.verify(bad))
 
     def test_non_numeric_issued_rejected(self):
-        name, _, sig = session.issue("alice").split("|")
-        self.assertIsNone(session.verify(f"{name}|abc|{sig}"))
+        encoded, _, epoch, sig = session.issue("alice", 0).split("|")
+        self.assertIsNone(session.verify("|".join((encoded, "abc", epoch, sig))))
 
     def test_future_token_rejected(self):
         import time
 
         issued = int(time.time()) + 9999
-        self.assertIsNone(session.verify(f"alice|{issued}|{crypto.sign('alice\n' + str(issued))}"))
+        token = "|".join((
+            session._encode_name("alice"), str(issued), "0",
+            crypto.sign(f"alice\n{issued}\n0"),
+        ))
+        self.assertIsNone(session.verify(token))
+
+    def test_cookie_roundtrip(self):
+        """令牌经浏览器 Cookie → 标准库 SimpleCookie 往返后仍能校验通过。
+
+        回归背景：曾经在写 Cookie 时用 encodeURIComponent，`|` 变成 `%7C`，
+        SimpleCookie 不解码导致刷新后永远登录不上。
+        """
+        from http.cookies import SimpleCookie
+
+        for name in ("William", "e2e_login_user", "张三丰", "a-b_c.9"):
+            with self.subTest(name=name):
+                token = session.issue(name, 2)
+                jar = SimpleCookie()
+                jar.load(f"gaoleda_session={token}")
+                read_back = jar["gaoleda_session"].value
+                self.assertEqual(read_back, token)
+                self.assertEqual(session.verify(read_back), (name, 2))
+
+    def test_token_is_cookie_safe_ascii(self):
+        """令牌本身必须是纯 ASCII，且不含 Cookie 分隔符（保证原样往返）。"""
+        token = session.issue("张三丰·测试", 1)
+        self.assertTrue(token.isascii())
+        for ch in ' ;,\t\r\n"\\':
+            self.assertNotIn(ch, token)
+        self.assertNotIn("=", token)
 
     def test_max_age_matches_config(self):
         self.assertEqual(session.max_age(), SESSION_DAYS * 86400)
+
+
+# ================================================================ 会话世代号
+class TestSessionEpoch(unittest.TestCase):
+    """退出登录 → 旧令牌立即失效（服务端确定性，不依赖浏览器删 Cookie）。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self._old_db = storage.DB_PATH
+        storage.DB_PATH = Path(self.tmp.name) / "app.db"
+        storage._initialized = False
+        with storage.db():          # 打开一次连接即触发建表
+            pass
+
+    def tearDown(self):
+        storage.DB_PATH = self._old_db
+        storage._initialized = False
+        self.tmp.cleanup()
+
+    def test_default_epoch_is_zero(self):
+        ok, _ = auth.register("epoch_user", "123456", "13800000001")
+        self.assertTrue(ok)
+        self.assertEqual(auth.session_epoch("epoch_user"), 0)
+
+    def test_bump_increments(self):
+        auth.register("epoch_user", "123456", "13800000001")
+        self.assertEqual(auth.bump_session_epoch("epoch_user"), 1)
+        self.assertEqual(auth.bump_session_epoch("epoch_user"), 2)
+        self.assertEqual(auth.session_epoch("epoch_user"), 2)
+
+    def test_epoch_of_unknown_user_is_none(self):
+        self.assertIsNone(auth.session_epoch("nobody"))
+        self.assertEqual(auth.bump_session_epoch("nobody"), 0)
+
+    def test_old_token_dies_after_logout(self):
+        auth.register("epoch_user", "123456", "13800000001")
+        token = session.issue("epoch_user", auth.session_epoch("epoch_user"))
+        self.assertIsNotNone(session.verify(token))
+        auth.bump_session_epoch("epoch_user")          # 等价于退出登录
+        name, epoch = session.verify(token)
+        self.assertNotEqual(auth.session_epoch(name), epoch)
+
+    def test_new_token_survives_after_relogin(self):
+        auth.register("epoch_user", "123456", "13800000001")
+        auth.bump_session_epoch("epoch_user")
+        token = session.issue("epoch_user", auth.session_epoch("epoch_user"))
+        name, epoch = session.verify(token)
+        self.assertEqual(auth.session_epoch(name), epoch)
 
 
 # ================================================================ 手机号
@@ -416,7 +498,9 @@ class TestStorageMigration(unittest.TestCase):
         with storage.db() as conn:
             users = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
             files = {r["name"] for r in conn.execute("PRAGMA table_info(files)")}
-        self.assertTrue({"role", "phone", "avatar", "password_enc"} <= users)
+        self.assertTrue(
+            {"role", "phone", "avatar", "password_enc", "session_epoch"} <= users
+        )
         self.assertIn("repo", files)
 
     def test_drafts_table_present(self):
@@ -447,7 +531,9 @@ class TestStorageMigration(unittest.TestCase):
         users = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
         files = {r["name"] for r in conn.execute("PRAGMA table_info(files)")}
         conn.close()
-        self.assertTrue({"role", "phone", "avatar", "password_enc"} <= users)
+        self.assertTrue(
+            {"role", "phone", "avatar", "password_enc", "session_epoch"} <= users
+        )
         self.assertIn("repo", files)
 
 

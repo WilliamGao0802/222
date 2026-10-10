@@ -76,7 +76,7 @@ from ui import components as c  # noqa: E402
 from ui import theme  # noqa: E402
 from views import account, admin, forum, home, news  # noqa: E402
 from views import files as files_view  # noqa: E402
-from views import logout, restore_session  # noqa: E402
+from views import flush_cookie, has_pending_cookie, logout, restore_session  # noqa: E402
 
 # ---------------------------------------------------------------- 页面配置
 st.set_page_config(
@@ -96,7 +96,14 @@ st.session_state.setdefault("user", None)
 st.session_state.setdefault("news_detail", None)
 
 # 用浏览器 Cookie 恢复登录态 —— 刷新页面不需要重新登录
-restore_session()
+#
+# 注意顺序：若本轮还压着一个「待写入 / 待清除」的 Cookie（刚登录或刚退出），
+# 就先别恢复登录态 —— 否则刚点完退出登录，会被尚未清掉的旧 Cookie 立刻拉回去。
+if not has_pending_cookie():
+    restore_session()
+
+# 把上一轮排队的 Cookie 真正写进浏览器
+flush_cookie()
 
 # 每次会话同步一次管理员角色（把名单内的老账号补成管理员）
 if not st.session_state.get("_admin_synced"):
