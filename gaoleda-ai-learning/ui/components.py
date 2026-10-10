@@ -23,6 +23,28 @@ def chip(text: str, kind: str = "") -> str:
     return f'<span class="{cls}">{e(text)}</span>'
 
 
+# ---------------------------------------------------------------- 头像
+def avatar_block(username: str, size: int = 38) -> str:
+    """圆形头像 HTML：上传过就显示图片，否则显示首字母渐变块。"""
+    from core import avatars  # 延迟导入，避免 ui → core 的模块级耦合
+
+    name = (username or "?").strip() or "?"
+    uri = avatars.avatar_data_uri(name)
+    if uri:
+        return (
+            f'<img src="{uri}" alt="{e(name)}" '
+            f'style="width:{size}px;height:{size}px;border-radius:50%;object-fit:cover;'
+            f'flex:0 0 {size}px;display:block;border:1px solid rgba(255,255,255,.18)">'
+        )
+    initial = e(name[0].upper())
+    return (
+        f'<div style="width:{size}px;height:{size}px;border-radius:50%;flex:0 0 {size}px;'
+        f'display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;'
+        f'font-size:{max(12, size // 2)}px;'
+        f'background:linear-gradient(135deg,#7C6CF6,#22D3EE)">{initial}</div>'
+    )
+
+
 def hero(kicker: str, title: str, subtitle: str) -> None:
     html(
         f"""
@@ -61,14 +83,21 @@ def empty(emoji: str, text: str) -> None:
     )
 
 
-def list_item(name: str, sub: str, right: str = "") -> None:
+def list_item(name: str, sub: str, right: str = "", avatar: str = "") -> None:
+    """一行信息。avatar 传用户名即渲染头像，传空串则只有文字。"""
     right_html = f'<div class="g-sub" style="white-space:nowrap">{right}</div>' if right else ""
+    avatar_html = (
+        f'<div style="flex:0 0 auto">{avatar_block(avatar, 34)}</div>' if avatar else ""
+    )
     html(
         f"""
         <div class="g-list-item">
-            <div>
-                <div class="g-name">{e(name)}</div>
-                <div class="g-sub">{e(sub)}</div>
+            <div style="display:flex;align-items:center;gap:11px;min-width:0">
+                {avatar_html}
+                <div style="min-width:0">
+                    <div class="g-name">{e(name)}</div>
+                    <div class="g-sub">{e(sub)}</div>
+                </div>
             </div>
             {right_html}
         </div>
@@ -76,12 +105,20 @@ def list_item(name: str, sub: str, right: str = "") -> None:
     )
 
 
-def user_box(name: str, sub: str) -> None:
+def user_box(name: str, sub: str, avatar: bool = True) -> None:
+    av = (
+        f'<div style="flex:0 0 auto">{avatar_block(name, 40)}</div>' if avatar else ""
+    )
     html(
         f"""
         <div class="g-userbox">
-            <div class="g-uname">{e(name)}</div>
-            <div class="g-usub">{e(sub)}</div>
+            <div style="display:flex;align-items:center;gap:12px">
+                {av}
+                <div style="min-width:0">
+                    <div class="g-uname">{e(name)}</div>
+                    <div class="g-usub">{e(sub)}</div>
+                </div>
+            </div>
         </div>
         """
     )

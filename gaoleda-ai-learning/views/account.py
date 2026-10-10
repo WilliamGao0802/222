@@ -5,6 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from core import auth, config, discussion
+from core import avatars
 from core import files as file_store
 from ui import components as c
 from views import goto, logout, sign_in
@@ -134,6 +135,43 @@ def _render_profile(user: str) -> None:
     tab1, tab2, tab3 = st.tabs(["个人设置", "我的发言", "我的文件"])
 
     with tab1:
+        # ---------------- 头像 ----------------
+        st.markdown("**我的头像**")
+        current_avatar = avatars.avatar_file(user)
+        av_col, up_col = st.columns([1, 3])
+        with av_col:
+            st.markdown(
+                f'<div style="display:flex;justify-content:center;padding-top:6px">'
+                f"{c.avatar_block(user, 88)}</div>",
+                unsafe_allow_html=True,
+            )
+        with up_col:
+            picked = st.file_uploader(
+                "从本地上传头像",
+                type=["png", "jpg", "jpeg", "gif", "webp", "bmp"],
+                key="avatar_upload",
+                help=f"支持 PNG / JPG / GIF / WEBP / BMP，单张不超过 {config.AVATAR_MAX_KB} KB",
+            )
+            ab1, ab2 = st.columns(2)
+            with ab1:
+                if st.button("⬆ 保存头像", use_container_width=True,
+                             disabled=picked is None, type="primary"):
+                    ok, msg = avatars.save_avatar(
+                        user, picked.name, bytes(picked.getbuffer())
+                    )
+                    st.toast(msg) if ok else st.error(msg)
+                    if ok:
+                        st.rerun()
+            with ab2:
+                if st.button("↺ 恢复默认", use_container_width=True,
+                             disabled=not current_avatar):
+                    ok, msg = avatars.clear_avatar(user)
+                    st.toast(msg) if ok else st.error(msg)
+                    if ok:
+                        st.rerun()
+
+        st.divider()
+
         with st.form("phone_form"):
             st.caption("绑定 / 更换手机号（不需要短信验证码，格式正确即保存）")
             new_phone = st.text_input(

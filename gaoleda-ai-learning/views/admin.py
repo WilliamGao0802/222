@@ -16,13 +16,13 @@ from ui import components as c
 
 
 def _initial_block(name: str, is_admin: bool, size: int = 40) -> str:
-    initial = c.e((name or "?")[0].upper())
-    ring = "box-shadow:0 0 0 2px rgba(34,211,238,.55)" if is_admin else "none"
+    """成员头像：有上传就走真头像，否则首字母块；管理员加一圈青色描边。"""
+    markup = c.avatar_block(name, size)
+    if not is_admin:
+        return markup
     return (
-        f'<div style="width:{size}px;height:{size}px;border-radius:50%;flex:0 0 {size}px;'
-        f'display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;'
-        f'font-size:{max(13, size // 2)}px;{ring};'
-        f'background:linear-gradient(135deg,#7C6CF6,#22D3EE)">{initial}</div>'
+        f'<div style="flex:0 0 {size}px;border-radius:50%;'
+        f'box-shadow:0 0 0 2px rgba(34,211,238,.55)">{markup}</div>'
     )
 
 

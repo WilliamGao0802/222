@@ -80,6 +80,7 @@ def render() -> None:
             c.list_item(
                 f"{medal} {row['username']}",
                 f"发帖 {row['posts']} · 获赞 {row['likes']}",
+                avatar=row["username"],
             )
 
     c.footer(

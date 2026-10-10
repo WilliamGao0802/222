@@ -10,13 +10,10 @@ from views import goto
 
 
 def _header_html(post: dict) -> str:
-    initial = c.e((post["username"] or "?")[0].upper())
     topic = post.get("topic") or "综合"
     return (
         f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'
-        f'<div style="width:34px;height:34px;border-radius:50%;flex:0 0 34px;'
-        f'display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;'
-        f'background:linear-gradient(135deg,#7C6CF6,#22D3EE)">{initial}</div>'
+        f"{c.avatar_block(post['username'], 34)}"
         f"<div>"
         f'<div style="font-weight:700;color:#fff;font-size:14.5px">{c.e(post["username"])}</div>'
         f'<div style="color:#6E7799;font-size:12px">{c.e(post["created_at"])}'

@@ -145,7 +145,7 @@ with st.sidebar:
     user = st.session_state.get("user")
     if user:
         info = auth.get_user(user) or {}
-        c.user_box(f"👤 {user}", info.get("bio") or "已登录")
+        c.user_box(user, info.get("bio") or "已登录")
         if st.button("退出登录", use_container_width=True, key="sidebar_logout"):
             logout()
             st.rerun()
