@@ -52,10 +52,17 @@ AVATAR_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 # ---------- 文件区 ----------
 MAX_UPLOAD_MB = 20
 ALLOWED_SUFFIXES = {
+    # 文档
     ".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx",
-    ".txt", ".md", ".csv", ".json", ".py", ".ipynb",
-    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
-    ".zip", ".rar", ".7z", ".mp3", ".mp4",
+    ".txt", ".md", ".csv", ".json", ".xml", ".yml", ".yaml", ".toml",
+    # 图片
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp",
+    # 代码（「算法 / 题解」仓库常用）
+    ".py", ".ipynb", ".cpp", ".cc", ".c", ".h", ".hpp", ".java",
+    ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".rb", ".php",
+    ".sql", ".sh", ".bat", ".r", ".m", ".kt", ".swift",
+    # 压缩包与音视频
+    ".zip", ".rar", ".7z", ".tar", ".gz", ".mp3", ".mp4",
 }
 
 # 文件仓库分类：上传时必须选一个，浏览时可按仓库筛选
