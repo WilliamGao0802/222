@@ -1,4 +1,4 @@
-# 「高乐达的AI学习」部署上线指南
+# 「学习AI with William Gao」部署上线指南
 
 > 本文回答五件事：**准备哪些文件 → 入口脚本怎么配 → 依赖怎么写 → 选哪种部署方式 → 启动命令与上线后排查**。
 > 面向结果：一条命令拉起服务，一个公网网址对外访问。
@@ -9,7 +9,8 @@
 
 | 项目 | 值 |
 |---|---|
-| 公网地址 | `https://gaoleda-ai-learning-73899.app.workbuddy.host/` |
+| 平台 A（WorkBuddy 发布为应用） | `https://gaoleda-ai-learning-73899.app.workbuddy.host/` |
+| 平台 B（Streamlit Community Cloud） | 仓库 `WilliamGao0802/222`，主文件 `app.py` |
 | 首页响应 | `HTTP 200` |
 | 健康检查 | `GET /_stcore/health` → `ok` |
 | 部署方式 | WorkBuddy「发布为应用」（方式 A） |
@@ -231,7 +232,10 @@ location / {
 | 页面一直转圈 / 空白骨架 | WebSocket 未打通（代理缺 `Upgrade`/`Connection` 头） | 按 5.5 补齐 Nginx 配置；确认 CDN 未剥离升级头 |
 | `ModuleNotFoundError: No module named 'core'` | 包目录缺 `__init__.py`；或在错误目录启动 | 补 `__init__.py`；确认启动目录 = 项目根，主文件 = `app.py` |
 | `ModuleNotFoundError: No module named 'streamlit'` | 依赖未装 / `requirements.txt` 缺失 | 确认 `requirements.txt` 存在且在根目录，重装依赖 |
-| **重新发布后用户、帖子、上传文件全没了** | 平台用**临时文件系统**，每次重建容器清空 `data/` | 设置 `GAOLEDA_DATA_DIR=/持久卷路径`；或改用带持久磁盘的平台（C / D 方式） |
+| **重新发布后用户、帖子、上传文件全没了** | 平台用**临时文件系统**，每次重建容器清空 `data/`（其中含 SQLite 库、上传文件、头像、`.secret` 密钥） | 设置 `GAOLEDA_DATA_DIR=/持久卷路径`；或改用带持久磁盘的平台（C / D 方式） |
+| 管理员后台不显示 | 当前账号不是管理员 | 用用户名 `William` 注册（命中 `config.ADMIN_USERNAMES` 即自动授权）；老账号会在启动时自动提权 |
+| 成员密码显示「（无法解密）」 | `data/.secret` 丢失或更换，历史密码副本无法还原 | 属预期行为；让该成员改一次密码即可重新生成可解密的副本 |
+| 刷新后登录状态丢失 | Cookie 被浏览器拦截 / 站点在无 cookie 的隐私模式 | 确认允许站点 Cookie；`data/.secret` 变化也会让旧令牌失效 |
 | 上传文件失败 | 超过限制 | `config.toml` 的 `maxUploadSize`（传输层）与 `core/config.py` 的 `MAX_UPLOAD_MB`（业务层）两处都要够 |
 | 启动报端口占用 | 本地 8501 被占 | 换端口：`PORT=8502 python app.py` |
 | 容器外访问不到 | 绑定了 `127.0.0.1` | 必须绑 `0.0.0.0`（代码已默认处理） |

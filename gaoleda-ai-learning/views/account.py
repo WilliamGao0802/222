@@ -105,7 +105,7 @@ def _render_profile(user: str) -> None:
     followers = discussion.followers_of(user)
     my_files = file_store.files_by(user)
 
-    c.hero("PROFILE", f"你好，{user}", info.get("bio") or "欢迎回到高乐达的AI学习")
+    c.hero("PROFILE", f"你好，{user}", info.get("bio") or f"欢迎回到{config.APP_NAME}")
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("我的发言", len(my_posts))

@@ -76,7 +76,7 @@ class TestUsernameValidation(unittest.TestCase):
         self.assertTrue(ok)
 
     def test_accepts_chinese(self):
-        ok, _ = auth.validate_username("高乐达")
+        ok, _ = auth.validate_username("学习者")
         self.assertTrue(ok)
 
     def test_rejects_empty_and_whitespace(self):

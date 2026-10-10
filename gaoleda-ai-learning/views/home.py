@@ -15,7 +15,7 @@ def render() -> None:
     user = st.session_state.get("user")
 
     c.hero(
-        "GAOLEDA · AI LEARNING",
+        "WILLIAM GAO · AI LEARNING",
         config.APP_NAME,
         config.APP_SLOGAN,
     )
@@ -53,13 +53,13 @@ def render() -> None:
         if st.button("进入新闻", key="home_goto_news", use_container_width=True):
             goto("news")
     with f2:
-        c.card("💬 讨论区", c.chip("互赞 · 互关", "mint"),
-               "只对注册用户开放。发表观点、为他人点赞、关注感兴趣的同伴。")
+        c.card("💬 讨论区", c.chip("互赞 · 互关 · 草稿箱", "mint"),
+               "只对注册用户开放。发表观点、为他人点赞、关注同伴，没写完的可以先存草稿箱。")
         if st.button("进入讨论区", key="home_goto_forum", use_container_width=True):
             goto("forum")
     with f3:
-        c.card("📁 文件区", c.chip("上传 · 浏览", "amber"),
-               "从本地选择文件上传共享，随时浏览社区已上传的全部资料。")
+        c.card("📁 文件区", c.chip("四仓库 · 站内搜索", "amber"),
+               "按算法 / 文章 / 语法 / 题解四个仓库上传资料，内置搜索引擎快速定位。")
         if st.button("进入文件区", key="home_goto_files", use_container_width=True):
             goto("files")
 

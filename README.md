@@ -18,6 +18,8 @@ python app.py            # 或 streamlit run app.py
 
 ## 部署上线
 
+代码托管在 **`WilliamGao0802/222`**（本项目即仓库根目录），站点源码位于 `gaoleda-ai-learning/`。
+
 完整部署说明见 **[`gaoleda-ai-learning/DEPLOY.md`](./gaoleda-ai-learning/DEPLOY.md)**，要点：
 
 | 事项 | 说明 |
@@ -25,8 +27,9 @@ python app.py            # 或 streamlit run app.py
 | 入口脚本 | `app.py`（`streamlit run app.py` 与 `python app.py` 双兼容，自动读 `PORT`） |
 | 依赖 | 仅 `streamlit` 一项，其余全为标准库 |
 | 启动命令 | `python app.py`（云端/容器）；本地同一条命令 |
+| Streamlit Cloud | 选仓库 `WilliamGao0802/222`、分支 `main`、主文件 `gaoleda-ai-learning/app.py` |
 | 健康检查 | `GET /_stcore/health` → `ok` |
-| 数据持久化 | 默认写入 `data/`；用环境变量 `GAOLEDA_DATA_DIR` 指向持久卷 |
+| 数据持久化 | 默认写入 `gaoleda-ai-learning/data/`；用环境变量 `GAOLEDA_DATA_DIR` 指向持久卷 |
 
 ## 功能一览
 

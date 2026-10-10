@@ -1,9 +1,9 @@
-# 高乐达的AI学习
+# 学习AI with William Gao
 
 > 探索人工智能前沿 · 交流 · 成长
-> 一个可直接部署、可公开访问的 AI 学习社区（Streamlit + SQLite）
+> 一个可直接部署、可公开访问的 AI 学习社区（Streamlit + 单文件 SQLite）
 
-**线上地址**：见部署说明（由部署平台生成）
+**线上地址**：由部署平台生成（见 `DEPLOY.md`）
 
 ---
 
@@ -11,33 +11,42 @@
 
 | 模块 | 能力 |
 |---|---|
-| **用户系统** | 注册 / 登录 / 退出；注册总数上限 1000 人；仅需用户名 + 密码；密码必须**恰好 6 位阿拉伯数字**（逐项校验并给出明确提示）；用户名重复、密码格式不符、密码错误、名额已满均有独立提示；密码以 PBKDF2-HMAC-SHA256 + 每用户随机盐存储，不落明文 |
-| **AI 新闻** | 聚合 6 个国际权威信源 RSS，并行抓取；只保留近一年内容并去重；30 分钟缓存 + 手动刷新；每条可**点进详情页**，详情页提供**外部原文链接**；信源全部不可达时自动回落到「近一年精选归档」，页面永不空白 |
+| **用户系统** | 注册 / 登录 / 退出；**用户名 + 密码 + 手机号**；注册总数上限 1000 人；密码必须**恰好 6 位阿拉伯数字**（逐项校验并给出明确提示）；用户名重复、密码格式不符、密码错误、手机号格式错误、名额已满均有独立提示；密码以 PBKDF2-HMAC-SHA256 + 每用户随机盐存储 |
+| **记住登录** | 登录状态写入浏览器 Cookie（HMAC-SHA256 签名、30 天有效）。**刷新页面、关闭再打开都不用重新登录**；退出登录会同时清除 Cookie |
+| **管理员后台** | 仅 `William` 账户可见（用户名命中 `config.ADMIN_USERNAMES`）。成员总览含手机号、注册时间、上次登录、发帖 / 文件 / 草稿 / 获赞；**查看成员密码**（默认打码，可切换明文）；重置成员密码；**删除成员账户**（二次确认，级联清理其全部内容） |
+| **手机号绑定** | 注册时必填，个人中心可随时更换；**不需要短信验证码**，格式正确即保存；中国大陆 11 位手机号校验（1 开头、第二位 3-9） |
+| **头像** | 从本地上传 / 更换 / 恢复默认；PNG·JPG·GIF·WEBP·BMP，单张 ≤300 KB；侧边栏、讨论区、活跃榜、管理后台统一显示圆形头像，未设置时显示首字母渐变块 |
+| **AI 新闻** | 聚合 6 个国际权威信源 RSS，并行抓取；只保留近一年内容并去重；30 分钟缓存 + 手动刷新；每条可**点进详情页**并跳转**外部原文链接**；信源不可达时自动回落到精选归档，页面永不空白 |
 | **讨论区** | 仅注册用户可发言；话题分类与筛选；**互相点赞**（可取消）、**互相关注**（可取消）；显示点赞人数、我的关注 / 粉丝；活跃用户榜；只能删除自己的发言 |
-| **文件区** | 从本地选择文件上传（支持多选）、说明备注、关键词搜索、在线下载、删除自己的文件；扩展名白名单 + 单文件 20MB 上限；**uuid 重命名落盘**，杜绝路径穿越 |
-| **个人中心** | 个人简介、修改密码、我的发言 / 我的文件、获赞数、关注 / 粉丝列表 |
+| **草稿箱** | 发言可先存草稿（新建 / 更新 / 删除）；草稿箱内可**载入编辑器**继续写、**直接发布**到讨论区；发布后草稿自动移除；草稿按用户隔离，他人不可见 |
+| **文件区** | 按**算法 / 文章 / 语法 / 题解**四个仓库分类上传；**站内搜索引擎**：多关键词（空格分隔、同时满足）+ 搜索范围（全部字段 / 文件名 / 说明 / 上传者）+ 仓库筛选 + 四种排序 + 命中高亮；扩展名白名单、单文件 20 MB 上限、uuid 重命名落盘防路径穿越 |
 | **视觉** | 深空蓝黑底 + 靛紫→青渐变、玻璃拟态卡片、极光流动背景、卡片入场上浮、悬停光晕；桌面 / 移动端自适应（侧边栏桌面展开、移动收起） |
 
 ## 二、项目结构
 
 ```
 gaoleda-ai-learning/
-├── app.py                  # 入口：路由 + 全局侧边栏 + 可选独立启动
+├── app.py                  # 入口：路由 + 全局侧边栏 + 会话恢复 + 可选独立启动
 ├── requirements.txt        # 唯一依赖：streamlit
 ├── .streamlit/config.toml  # 主题与服务器配置
 ├── core/                   # 纯 Python 业务逻辑（不 import streamlit，可离线单测）
 │   ├── config.py           #   常量与路径（支持 GAOLEDA_DATA_DIR 环境变量重定向）
-│   ├── storage.py          #   SQLite 持久化层（WAL + 进程写锁）
-│   ├── auth.py             #   用户系统
+│   ├── crypto.py           #   密钥管理 / HMAC 签名 / 对称加密（标准库实现）
+│   ├── session.py          #   「记住登录」令牌的签发与校验
+│   ├── storage.py          #   SQLite 持久化层（WAL + 进程写锁 + 轻量迁移）
+│   ├── auth.py             #   用户系统（角色 / 手机号 / 密码）
+│   ├── admin.py            #   管理员后台业务（成员总览 / 删除 / 重置密码）
+│   ├── avatars.py          #   头像存取
+│   ├── drafts.py           #   讨论区草稿箱
 │   ├── news.py             #   AI 新闻（RSS 聚合 / 缓存 / 兜底）
 │   ├── discussion.py       #   讨论区（帖 / 赞 / 关注）
-│   └── files.py            #   文件区
+│   └── files.py            #   文件区（仓库分类 + 搜索引擎）
 ├── views/                  # 页面渲染函数（只调 core，不直接读写库）
-│   ├── home.py / news.py / forum.py / files.py / account.py
-├── ui/                     # 主题 CSS 与可复用组件（全部输出经 html.escape）
-├── tests/test_core.py      # 44 项单元测试
+│   └── home / news / forum / files / account / admin
+├── ui/                     # 主题 CSS、可复用组件、浏览器 Cookie 桥
+├── tests/test_core.py      # 单元测试
 ├── scripts/
-│   ├── smoke_test.py       # Streamlit AppTest：11 个页面渲染用例
+│   ├── smoke_test.py       # Streamlit AppTest：逐页渲染用例
 │   ├── flow_test.py        # 主链路功能测试（真实点按钮）
 │   └── _page_runner.py     # 冒烟测试用单页入口
 ├── run.bat / run.sh        # 一键启动（自动建 venv）
@@ -67,60 +76,42 @@ python app.py                     # 或 streamlit run app.py
 
 ## 四、部署上线
 
-### 方式 A：一键发布（当前已采用）
+完整说明见 **[DEPLOY.md](./DEPLOY.md)**，速览：
 
-WorkBuddy「发布为应用」：把项目目录作为单端口 HTTP 服务发布，
-自动完成上传、依赖安装、`PORT` 注入与启动，返回公开访问链接。
-
-### 方式 B：Streamlit Community Cloud（免费）
-
-1. 推送到 GitHub（`data/` 已在 `.gitignore` 中，不会上传用户数据）
-2. 打开 <https://share.streamlit.io> → 用 GitHub 登录 → **New app**
-3. 选仓库 / `main` 分支 / 主文件 `app.py` → **Deploy**
-4. 1–3 分钟后得到 `https://<应用名>.streamlit.app`
-
-### 方式 C：自带服务器
-
-```bash
-pip install -r requirements.txt
-PORT=8000 python app.py          # 再用 Nginx 反代 8000 端口即可
-```
-
-Nginx 反代需开启 WebSocket 支持：
-
-```nginx
-location / {
-    proxy_pass http://127.0.0.1:8000;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;      # 关键：Streamlit 依赖 WebSocket
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_read_timeout 86400;
-}
-```
+| 方式 | 场景 |
+|---|---|
+| **A. 一键发布**（当前已采用） | 平台把项目作为单端口 HTTP 服务发布，自动注入 `PORT` 并启动 |
+| **B. Streamlit Community Cloud** | 推到 GitHub → share.streamlit.io → 选仓库 / `main` / 主文件 `app.py` → Deploy |
+| **C. 自有服务器 / Docker** | `PORT=8000 python app.py`，再用 Nginx 反代（**必须支持 WebSocket**） |
 
 ## 五、测试与验收
 
 ```bash
-python -m unittest discover -s tests -v   # 44 项单元测试
-python scripts/smoke_test.py              # 11 个页面渲染用例
+python -m unittest discover -s tests -v   # 单元测试
+python scripts/smoke_test.py              # 逐页渲染冒烟（含管理后台三种身份）
 python scripts/flow_test.py               # 注册→登录→发帖→点赞→上传 主链路
 ```
 
 ## 六、运维须知
 
-- **⚠️ 数据存放在 `data/`（SQLite + 上传文件）。** 托管平台用临时文件系统时，
-  **重新发布 / 重建容器都会把 `data/` 清空**——用户、帖子、上传文件会全部丢失
-  （本站当前即属此类，验收时已实测两次发布后数据归零）。
+- **⚠️ 数据存放在 `data/`（SQLite + 上传文件 + 头像 + 密钥）。** 托管平台若用临时文件系统，
+  **重新发布 / 重建容器都会把 `data/` 清空**——用户、帖子、上传文件、头像全部丢失。
   需要真正持久化时：把平台提供的持久磁盘路径通过环境变量
   `GAOLEDA_DATA_DIR` 指过去即可，代码无需改动；或改用带持久卷的平台（Render Disk / Railway Volume）。
-- **默认演示账号**：`demo` / `123456`（发布后自动创建，含一条示例发言；数据重置后需重建）。
+- **管理员账号**：用户名 `William`（不区分大小写）注册即获得管理员权限；
+  若老账号需要提权，启动时会自动同步一次 `config.ADMIN_USERNAMES`。
+  改名单请编辑 `core/config.py`。
+- **密码可逆存储说明**：登录校验走不可逆哈希；为支持管理员查看密码，
+  另存了一份对称加密副本（密钥在 `data/.secret`）。这是明显折衷，**仅适合教学 / 内网小站**，
+  正式生产请去掉该功能或改用 KMS。删除 `data/.secret` 会导致历史密码不可解密。
+- **登录 Cookie 密钥**同样来自 `data/.secret`；该文件丢失后所有人需重新登录一次。
 - 新闻每 30 分钟自动刷新；也可在新闻页点「刷新新闻」强制重抓。
-- 上传文件有类型白名单与 20MB 上限，可在 `core/config.py` 调整。
-- 用户上限 1000、密码 6 位数字等规则集中在 `core/config.py`，改一处全局生效。
+- 上传文件有类型白名单与 20 MB 上限，头像 300 KB 上限，均可在 `core/config.py` 调整。
+- 用户上限 1000、密码 6 位数字、四个文件仓库等规则集中在 `core/config.py`，改一处全局生效。
 
 ## 七、版本
 
 | 版本 | 日期 | 内容 |
 |---|---|---|
 | v1.0.0 | 2026-10-10 | 首个公开版本：用户系统、AI 新闻、讨论区、文件区、个人中心、完整测试与部署说明 |
+| v1.1.0 | 2026-10-10 | 记住登录（Cookie 会话）、管理员后台、手机号绑定、头像上传、讨论区草稿箱、文件区四仓库与站内搜索；站点更名「学习AI with William Gao」 |

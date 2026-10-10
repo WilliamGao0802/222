@@ -1,6 +1,6 @@
 @echo off
 rem ============================================================
-rem  高乐达的AI学习 - one-click launcher (Windows)
+rem  Study AI with William Gao - one-click launcher (Windows)
 rem  Creates a local venv, installs deps, starts the app.
 rem ============================================================
 setlocal
