@@ -70,10 +70,11 @@ if __name__ == "__main__" and _should_bootstrap():
 import streamlit as st  # noqa: E402
 
 from core import auth, config, discussion  # noqa: E402
+from core import admin as admin_core  # noqa: E402
 from core import files as file_store  # noqa: E402
 from ui import components as c  # noqa: E402
 from ui import theme  # noqa: E402
-from views import account, forum, home, news  # noqa: E402
+from views import account, admin, forum, home, news  # noqa: E402
 from views import files as files_view  # noqa: E402
 from views import logout, restore_session  # noqa: E402
 
@@ -97,12 +98,18 @@ st.session_state.setdefault("news_detail", None)
 # 用浏览器 Cookie 恢复登录态 —— 刷新页面不需要重新登录
 restore_session()
 
+# 每次会话同步一次管理员角色（把名单内的老账号补成管理员）
+if not st.session_state.get("_admin_synced"):
+    admin_core.sync_admin_roles()
+    st.session_state["_admin_synced"] = True
+
 # ---------------------------------------------------------------- 页面注册
 page_home = st.Page(home.render, title="首页", icon="🏠", url_path="home", default=True)
 page_news = st.Page(news.render, title="AI 新闻", icon="📰", url_path="news")
 page_forum = st.Page(forum.render, title="讨论区", icon="💬", url_path="forum")
 page_files = st.Page(files_view.render, title="文件区", icon="📁", url_path="files")
 page_account = st.Page(account.render, title="我的账户", icon="👤", url_path="account")
+page_admin = st.Page(admin.render, title="管理后台", icon="🛡️", url_path="admin")
 
 st.session_state["_pages"] = {
     "home": page_home,
@@ -110,14 +117,17 @@ st.session_state["_pages"] = {
     "forum": page_forum,
     "files": page_files,
     "account": page_account,
+    "admin": page_admin,
 }
 
-nav = st.navigation(
-    {
-        "导览": [page_home, page_news, page_forum, page_files],
-        "账户": [page_account],
-    }
-)
+_sections = {
+    "导览": [page_home, page_news, page_forum, page_files],
+    "账户": [page_account],
+}
+if admin_core.is_admin(st.session_state.get("user")):
+    _sections["管理"] = [page_admin]
+
+nav = st.navigation(_sections)
 
 # ---------------------------------------------------------------- 全局侧边栏
 with st.sidebar:

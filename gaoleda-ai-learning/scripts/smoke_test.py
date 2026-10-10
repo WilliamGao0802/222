@@ -76,6 +76,16 @@ def main() -> int:
     items = news_store.fetch_news(5)["items"]
     run_case("新闻详情", "AI 新闻", user="", detail=items[0]["title"])
 
+    print("⑤ 管理后台（游客 / 普通成员 / 管理员）…")
+    run_case("游客 · 管理后台", "管理后台", user="")
+    run_case("普通成员 · 管理后台", "管理后台", user="smoke_tester")
+
+    from core import auth  # noqa: PLC0415
+
+    if not auth.user_exists("William"):
+        auth.register("William", "888888")
+    run_case("管理员 · 管理后台", "管理后台", user="William")
+
     print()
     for line in passes:
         print("  ✓", line)

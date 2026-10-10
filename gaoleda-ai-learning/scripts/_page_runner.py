@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 import streamlit as st  # noqa: E402
 
-from views import account, forum, home, news  # noqa: E402
+from views import account, admin, forum, home, news  # noqa: E402
 from views import files as files_view  # noqa: E402
 
 PAGES = {
@@ -23,6 +23,7 @@ PAGES = {
     "讨论区": forum.render,
     "文件区": files_view.render,
     "我的账户": account.render,
+    "管理后台": admin.render,
 }
 
 label = os.environ.get("SMOKE_PAGE", "首页")

@@ -1,10 +1,12 @@
 """用户系统：注册 / 登录 / 退出所需的一切业务逻辑。
 
 规则（来自需求）
-- 用户名 + 密码即可注册、登录，无邮箱、无手机号。
+- 用户名 + 密码即可注册、登录；手机号为绑定信息（无需验证码）。
 - 密码必须**恰好 6 位阿拉伯数字**，逐项给出明确错误提示。
 - 用户名唯一；注册总人数上限 1000。
-- 密码不落明文：PBKDF2-HMAC-SHA256 + 每用户随机盐。
+- 登录校验用 PBKDF2-HMAC-SHA256 + 每用户随机盐，不落明文。
+- 为支持管理员后台「查看成员密码」，另存一份**可逆加密**副本（见 core/crypto.py 的说明）。
+- 用户名命中 config.ADMIN_USERNAMES 的账号自动获得管理员角色。
 """
 
 from __future__ import annotations
@@ -15,11 +17,21 @@ import secrets
 from datetime import datetime
 from typing import Any
 
-from .config import MAX_USERS, PASSWORD_LEN, USERNAME_MAX, USERNAME_MIN
+from . import crypto
+from .config import (
+    ADMIN_USERNAMES,
+    MAX_USERS,
+    PASSWORD_LEN,
+    USERNAME_MAX,
+    USERNAME_MIN,
+)
 from .storage import db, write
 
 _ITERATIONS = 120_000
 _FORBIDDEN_NAME_CHARS = set(" \t\n\r@/\\\"'<>#")
+
+ROLE_ADMIN = "admin"
+ROLE_MEMBER = "member"
 
 
 # ---------------------------------------------------------------- 校验
@@ -45,6 +57,11 @@ def validate_password(password: str) -> tuple[bool, str]:
     if len(pwd) != PASSWORD_LEN:
         return False, f"密码必须恰好为 {PASSWORD_LEN} 位数字（当前输入 {len(pwd)} 位）"
     return True, ""
+
+
+def is_reserved_admin_name(username: str) -> bool:
+    """该用户名是否为预置管理员名（不区分大小写）。"""
+    return (username or "").strip().lower() in ADMIN_USERNAMES
 
 
 # ---------------------------------------------------------------- 哈希
@@ -86,7 +103,8 @@ def user_exists(username: str) -> bool:
 def get_user(username: str) -> dict[str, Any] | None:
     with db() as conn:
         row = conn.execute(
-            "SELECT username, created_at, last_login, bio FROM users WHERE username = ?",
+            "SELECT username, created_at, last_login, bio, role, phone, avatar "
+            "FROM users WHERE username = ?",
             ((username or "").strip(),),
         ).fetchone()
     return dict(row) if row else None
@@ -95,7 +113,8 @@ def get_user(username: str) -> dict[str, Any] | None:
 def list_users(limit: int = 200) -> list[dict[str, Any]]:
     with db() as conn:
         rows = conn.execute(
-            "SELECT username, created_at, last_login FROM users ORDER BY created_at DESC LIMIT ?",
+            "SELECT username, created_at, last_login, role FROM users "
+            "ORDER BY created_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
     return [dict(r) for r in rows]
@@ -116,6 +135,7 @@ def register(username: str, password: str) -> tuple[bool, str]:
         return False, msg
 
     name = username.strip()
+    role = ROLE_ADMIN if is_reserved_admin_name(name) else ROLE_MEMBER
     with db() as conn:
         if conn.execute("SELECT 1 FROM users WHERE username = ?", (name,)).fetchone():
             return False, "该用户名已被注册，请换一个"
@@ -123,10 +143,18 @@ def register(username: str, password: str) -> tuple[bool, str]:
         if total >= MAX_USERS:
             return False, f"注册用户已达上限（{MAX_USERS} 人），暂时无法注册新账号"
         conn.execute(
-            "INSERT INTO users (username, password_hash, created_at, last_login) "
-            "VALUES (?, ?, ?, NULL)",
-            (name, _make_stored(password), datetime.now().isoformat(timespec="seconds")),
+            "INSERT INTO users (username, password_hash, password_enc, role, created_at, last_login) "
+            "VALUES (?, ?, ?, ?, ?, NULL)",
+            (
+                name,
+                _make_stored(password),
+                crypto.encrypt(password),
+                role,
+                datetime.now().isoformat(timespec="seconds"),
+            ),
         )
+    if role == ROLE_ADMIN:
+        return True, f"注册成功，{name} 已获得管理员权限，请登录"
     return True, "注册成功，请使用刚刚的用户名和密码登录"
 
 
@@ -170,10 +198,27 @@ def change_password(username: str, old_password: str, new_password: str) -> tupl
         if not ok:
             return False, msg
         conn.execute(
-            "UPDATE users SET password_hash = ? WHERE username = ?",
-            (_make_stored(new_password), name),
+            "UPDATE users SET password_hash = ?, password_enc = ? WHERE username = ?",
+            (_make_stored(new_password), crypto.encrypt(new_password), name),
         )
     return True, "密码已更新"
+
+
+@write
+def reset_password(username: str, new_password: str) -> tuple[bool, str]:
+    """直接重置密码（不校验原密码）。权限校验由调用方负责（见 core/admin.py）。"""
+    name = (username or "").strip()
+    ok, msg = validate_password(new_password)
+    if not ok:
+        return False, msg
+    with db() as conn:
+        if conn.execute("SELECT 1 FROM users WHERE username = ?", (name,)).fetchone() is None:
+            return False, "用户不存在"
+        conn.execute(
+            "UPDATE users SET password_hash = ?, password_enc = ? WHERE username = ?",
+            (_make_stored(new_password), crypto.encrypt(new_password), name),
+        )
+    return True, "密码已重置"
 
 
 @write
