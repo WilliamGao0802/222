@@ -33,23 +33,35 @@ def read(name: str) -> str:
 
 
 def _run_js(js: str) -> None:
-    """把一段脚本塞进零高度 iframe 执行。
+    """把一段脚本塞进 iframe 执行。
 
-    优先用 Streamlit 新版 `st.iframe`（components.v1.html 已标记弃用），
-    老版本上自动回退，保持对 streamlit>=1.37 的兼容。
+    ⚠️ 踩坑（实测于 streamlit 1.65.0，务必别改回去）
+      * `st.iframe(markup, height=0)` 会被 Streamlit 当成空元素**直接丢弃**：
+        页面上根本不会生成 iframe，脚本永远不会执行，而且**不报任何错**。
+        所以 st.iframe 的高度必须 ≥ 1。
+      * `components.html(markup, height=0, width=0)` 允许零高度、不留视觉痕迹，
+        但它已标记弃用（会在页面上弹弃用警告），因此只作为兜底。
+    结论：主用 st.iframe 的 1×1（无警告、无弃用），被移除时再退回 components.html。
     """
     markup = f"<script>{js}</script>"
     try:
-        st.iframe(markup, height=0)
+        st.iframe(markup, width=1, height=1)
+        return
     except Exception:  # noqa: BLE001  老版本没有 st.iframe
-        components.html(markup, height=0, width=0)
+        pass
+    components.html(markup, height=0, width=0)
 
 
 def _cookie_stmt(name: str, value: str, max_age: int) -> str:
-    """返回一段同时作用于当前文档与父文档的写 Cookie 语句。"""
+    """返回一段同时作用于当前文档与父文档的写 Cookie 语句。
+
+    值**不做** encodeURIComponent：服务端用标准库 SimpleCookie 读取，它不解码百分号，
+    一旦编码，`|` 会变成 `%7C` 回读后校验失败（典型现象：Cookie 写进去了却依然未登录）。
+    令牌本身已由 core/session.py 保证是纯 Cookie 安全 ASCII。
+    """
     payload = json.dumps(value)
     stmt = (
-        f'"{name}=" + encodeURIComponent({payload}) + '
+        f'"{name}=" + {payload} + '
         f'"; path=/; max-age={int(max_age)}; SameSite=Lax"'
     )
     return f"""
