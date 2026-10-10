@@ -16,8 +16,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from . import auth, crypto
-from .config import ADMIN_USERNAMES, AVATAR_DIR, UPLOAD_DIR
+from . import auth, avatars, crypto
+from . import files as file_store
+from .config import ADMIN_USERNAMES
 from .storage import db, write
 
 
@@ -140,9 +141,9 @@ def delete_member(operator: str, target: str) -> tuple[bool, str]:
         conn.execute("DELETE FROM users WHERE username = ?", (who,))
 
     for name in stored_files:
-        (UPLOAD_DIR / Path(name).name).unlink(missing_ok=True)
+        (file_store.UPLOAD_DIR / Path(name).name).unlink(missing_ok=True)
     if avatar:
-        (AVATAR_DIR / Path(avatar).name).unlink(missing_ok=True)
+        (avatars.AVATAR_DIR / Path(avatar).name).unlink(missing_ok=True)
 
     return True, f"已删除成员 {who}，其发言 / 点赞 / 关注 / 草稿 / 文件一并清理"
 
