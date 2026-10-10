@@ -4,6 +4,7 @@
 - 单文件 SQLite，随项目走，无需外部数据库（部署沙箱只给一个 HTTP 端口）。
 - WAL 模式 + busy_timeout，容忍 Streamlit 的多线程并发脚本重跑。
 - 连接用完即关，避免跨线程复用；写入用进程级锁串行化。
+- 自带**轻量迁移**：老库启动时自动补齐新增列与新表，无需手工操作。
 """
 
 from __future__ import annotations
@@ -13,10 +14,12 @@ import threading
 from contextlib import contextmanager
 from typing import Iterator
 
-from .config import DATA_DIR, DB_PATH
+from .config import DATA_DIR, DB_PATH, DEFAULT_REPO
 
 _LOCK = threading.RLock()
 _initialized = False
+
+TABLES = ("likes", "follows", "drafts", "files", "posts", "users")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -24,7 +27,11 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     created_at    TEXT NOT NULL,
     last_login    TEXT,
-    bio           TEXT NOT NULL DEFAULT ''
+    bio           TEXT NOT NULL DEFAULT '',
+    role          TEXT NOT NULL DEFAULT 'member',
+    phone         TEXT NOT NULL DEFAULT '',
+    avatar        TEXT NOT NULL DEFAULT '',
+    password_enc  TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS posts (
@@ -33,6 +40,15 @@ CREATE TABLE IF NOT EXISTS posts (
     content    TEXT NOT NULL,
     topic      TEXT NOT NULL DEFAULT '综合',
     created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS drafts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    username   TEXT NOT NULL,
+    content    TEXT NOT NULL,
+    topic      TEXT NOT NULL DEFAULT '综合',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS likes (
@@ -56,13 +72,45 @@ CREATE TABLE IF NOT EXISTS files (
     stored_name TEXT NOT NULL,
     size        INTEGER NOT NULL DEFAULT 0,
     note        TEXT NOT NULL DEFAULT '',
+    repo        TEXT NOT NULL DEFAULT '',
     created_at  TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_likes_post    ON likes(post_id);
-CREATE INDEX IF NOT EXISTS idx_files_created ON files(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_created  ON posts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_likes_post     ON likes(post_id);
+CREATE INDEX IF NOT EXISTS idx_files_created  ON files(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_drafts_owner   ON drafts(username, updated_at DESC);
 """
+
+# 老库升级表：(表名, [(列名, 列定义), ...])；缺少的列会被 ALTER TABLE 补上
+MIGRATIONS: dict[str, list[tuple[str, str]]] = {
+    "users": [
+        ("role", "TEXT NOT NULL DEFAULT 'member'"),
+        ("phone", "TEXT NOT NULL DEFAULT ''"),
+        ("avatar", "TEXT NOT NULL DEFAULT ''"),
+        ("password_enc", "TEXT NOT NULL DEFAULT ''"),
+    ],
+    "files": [
+        ("repo", f"TEXT NOT NULL DEFAULT '{DEFAULT_REPO}'"),
+    ],
+}
+
+
+def _columns_of(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """把老库补齐到当前 schema：新增列用 ALTER TABLE，新增表由 SCHEMA 的 IF NOT EXISTS 覆盖。"""
+    for table, columns in MIGRATIONS.items():
+        if not conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+        ).fetchone():
+            continue
+        existing = _columns_of(conn, table)
+        for column, decl in columns:
+            if column not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
 
 @contextmanager
@@ -81,6 +129,7 @@ def db() -> Iterator[sqlite3.Connection]:
                 if not _initialized:
                     conn.execute("PRAGMA journal_mode=WAL")
                     conn.executescript(SCHEMA)
+                    _migrate(conn)
                     conn.commit()
                     _initialized = True
         yield conn
@@ -109,6 +158,6 @@ def reset_for_tests() -> None:
     global _initialized
     with _LOCK:
         with db() as conn:
-            for table in ("likes", "follows", "files", "posts", "users"):
+            for table in TABLES:
                 conn.execute(f"DELETE FROM {table}")
         _initialized = True
